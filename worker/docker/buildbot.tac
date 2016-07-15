@@ -1,6 +1,9 @@
 import os
 import sys
 import fnmatch
+import pysigset
+
+pysigset.sigprocmask(pysigset.SIG_SETMASK, pysigset.SIGSET(), 0)
 
 from twisted.application import service
 from twisted.python.log import ILogObserver, FileLogObserver

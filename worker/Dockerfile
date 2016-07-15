@@ -24,7 +24,7 @@ RUN         apt-get update && \
 
 # Install required python packages, and twisted
 RUN         pip install service_identity pycrypto && \
-            pip install twisted && \
+            pip install twisted pysiget && \
             pip install /usr/src/buildbot-worker
 
 WORKDIR /buildbot
