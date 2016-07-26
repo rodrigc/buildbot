@@ -80,7 +80,6 @@ class BuilderStatus(styles.Versioned):
         # these three hold Events, and are used to retrieve the current
         # state of the boxes.
         self.lastBuildStatus = None
-        self.currentBuilds = []
         self.nextBuild = None
         self.watchers = []
         self.buildCache = LRUCache(self.cacheMiss)
@@ -97,11 +96,6 @@ class BuilderStatus(styles.Versioned):
         # the cache.  Just return it.
         if 'val' in kwargs:
             return kwargs['val']
-
-        # first look in currentBuilds
-        for b in self.currentBuilds:
-            if b.number == number:
-                return b
 
         # Otherwise it is in the database and thus inaccesible.
         return None
@@ -123,7 +117,7 @@ class BuilderStatus(styles.Versioned):
         return self.description
 
     def getState(self):
-        return (self.currentBigState, self.currentBuilds)
+        return (self.currentBigState, [])
 
     def getWorkers(self):
         return [self.status.getWorker(name) for name in self.workernames]
@@ -142,9 +136,6 @@ class BuilderStatus(styles.Versioned):
                                        self.status, brdict=brdict)
                     for brdict in brdicts]
         return d
-
-    def getCurrentBuilds(self):
-        return self.currentBuilds
 
     def getLastFinishedBuild(self):
         b = self.getBuild(-1)
@@ -314,8 +305,6 @@ class BuilderStatus(styles.Versioned):
         Steps, its ETA, etc), so it is safe to notify our watchers."""
 
         assert s.builder is self  # paranoia
-        assert s not in self.currentBuilds
-        self.currentBuilds.append(s)
         self.buildCache.get(s.number, val=s)
 
         # now that the BuildStatus is prepared to answer queries, we can
@@ -335,57 +324,6 @@ class BuilderStatus(styles.Versioned):
                 log.msg(
                     "Exception caught notifying %r of buildStarted event" % w)
                 log.err()
-
-    def _buildFinished(self, s):
-        assert s in self.currentBuilds
-        self.currentBuilds.remove(s)
-
-        name = self.getName()
-        results = s.getResults()
-        for w in self.watchers:
-            try:
-                w.buildFinished(name, s, results)
-            except Exception:
-                log.msg(
-                    "Exception caught notifying %r of buildFinished event" % w)
-                log.err()
-
-    def asDict(self):
-        # Collect build numbers.
-        # Important: Only grab the *cached* builds numbers to reduce I/O.
-        current_builds = [b.getNumber() for b in self.currentBuilds]
-        cached_builds = sorted(set(list(self.buildCache) + current_builds))
-
-        result = {
-            # Constant
-            # TODO(maruel): Fix me. We don't want to leak the full path.
-            'basedir': os.path.basename(self.basedir),
-            'tags': self.getTags(),
-            'workers': self.workernames,
-            'schedulers': [s.name for s in self.status.master.allSchedulers()
-                           if self.name in s.builderNames],
-            # TODO(maruel): Add cache settings? Do we care?
-
-            # Transient
-            'cachedBuilds': cached_builds,
-            'currentBuilds': current_builds,
-            'state': self.getState()[0],
-            # lies, but we don't have synchronous access to this info; use
-            # asDict_async instead
-            'pendingBuilds': 0
-        }
-        return result
-
-    def asDict_async(self):
-        """Just like L{asDict}, but with a nonzero pendingBuilds."""
-        result = self.asDict()
-        d = self.getPendingBuildRequestStatuses()
-
-        @d.addCallback
-        def combine(statuses):
-            result['pendingBuilds'] = len(statuses)
-            return result
-        return d
 
     def getMetrics(self):
         return self.botmaster.parent.metrics

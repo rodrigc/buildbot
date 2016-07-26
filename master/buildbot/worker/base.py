@@ -14,6 +14,7 @@
 # Portions Copyright Buildbot Team Members
 # Portions Copyright Canonical Ltd. 2009
 import time
+import traceback
 from email.message import Message
 from email.utils import formatdate
 
@@ -419,7 +420,6 @@ class AbstractWorker(service.BuildbotService, object):
         when we wind up with two connections for the same worker, in which
         case we disconnect the older connection.
         """
-
         if self.conn is None:
             return defer.succeed(None)
         log.msg("disconnecting old worker %s now" % (self.name,))
@@ -794,10 +794,16 @@ class AbstractLatentWorker(AbstractWorker):
         self.substantiated = False
         yield d
         self.insubstantiating = False
+        if self._substantiation_notifier:
+            # notify waiters that substanciation was cancelled
+            self._substantiation_notifier.notify(False)
         self.botmaster.maybeStartBuildsForWorker(self.name)
 
     @defer.inlineCallbacks
     def _soft_disconnect(self, fast=False):
+        if self.building:
+            # wait until build finished
+            return
         # a negative build_wait_timeout means the worker should never be shut
         # down, so just disconnect.
         if self.build_wait_timeout < 0:

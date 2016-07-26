@@ -516,7 +516,7 @@ class Build(properties.PropertiesMixin, WorkerAPICompatMixin):
                 lock.stopWaitingUntilAvailable(self, access, d)
                 d.callback(None)
 
-    def stopBuild(self, reason="<no reason given>", cbParams=None):
+    def stopBuild(self, reason="<no reason given>", results=CANCELLED, cbParams=None):
         # the idea here is to let the user cancel a build because, e.g.,
         # they realized they committed a bug and they don't want to waste
         # the time building something that they know will fail. Another
@@ -532,7 +532,7 @@ class Build(properties.PropertiesMixin, WorkerAPICompatMixin):
         if self.currentStep:
             self.currentStep.interrupt(reason)
 
-        self.results = CANCELLED
+        self.results = results
 
         if self._acquiringLock:
             lock, access, d = self._acquiringLock

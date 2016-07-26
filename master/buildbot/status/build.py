@@ -19,6 +19,7 @@ from zope.interface import implements
 
 from buildbot import interfaces
 from buildbot import util
+from buildbot.util.eventual import eventually
 
 
 class BuildStatus():
@@ -235,7 +236,7 @@ class BuildStatus():
         watchers = self.finishedWatchers
         self.finishedWatchers = []
         for w in watchers:
-            w.callback(self)
+            eventually(lambda: w.callback(self))
 
     # methods previously called by our now-departed BuildStepStatus children
 

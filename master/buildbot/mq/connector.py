@@ -12,6 +12,7 @@
 # Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 # Copyright Buildbot Team Members
+from twisted.internet import defer
 from twisted.python.reflect import namedObject
 
 from buildbot.util import service
@@ -73,3 +74,13 @@ class MQConnector(service.ReconfigurableServiceMixin, service.AsyncMultiService)
         # will be patched after configuration to point to the running
         # implementation's method
         raise NotImplementedError
+
+    @defer.inlineCallbacks
+    def waitUntilEvent(self, event):
+        d = defer.Deferred()
+        buildCompleteConsumer = yield self.startConsuming(
+            lambda key, value: d.callback((key, value)),
+            event)
+        res = yield d
+        yield buildCompleteConsumer.stopConsuming
+        defer.returnValue(res)

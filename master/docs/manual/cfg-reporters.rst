@@ -905,10 +905,10 @@ It uses private token auth, and the token owner is required to have at least rep
 
 .. py:class:: GitLabStatusPush(token, startDescription=None, endDescription=None, context=None, baseURL=None, verbose=False)
 
-    :param string token: Private token of user permitted to update status for commits 
-    :param string startDescription: Description used when build starts 
-    :param string endDescription: Description used when build ends 
-    :param string context: Name of your build system, eg. continuous-integration/buildbot 
+    :param string token: Private token of user permitted to update status for commits
+    :param string startDescription: Description used when build starts
+    :param string endDescription: Description used when build ends
+    :param string context: Name of your build system, eg. continuous-integration/buildbot
     :param string baseURL: the base url of the GitLab host, up to and optionally including the first `/` of the path. Do not include /api/
     :param string verbose: Be more verbose
 
@@ -1033,4 +1033,3 @@ Here's a complete example:
                 result['color'] = 'green' if build['results'] == 0 else 'red'
                 result['notify'] = (build['results'] != 0)
             return result
-

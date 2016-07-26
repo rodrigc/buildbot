@@ -3,6 +3,12 @@ div
     div(ng-repeat="build in builds")
       buildsummary(buildid="build.buildid", condensed="true")
   div(ng-if="!buildrequest.claimed")
-    span.badge-status.status_pending.pulse
-        | &nbsp;
-    | waiting for available worker
+    .panel.panel-default.results_PENDING
+      .panel-heading.no-select
+        .row
+          .col-sm-6
+            | waiting for available worker
+            span.badge-status.results_PENDING.pulse
+                a(ui-sref="buildrequest({buildrequest:buildrequest.buildrequestid})")
+                | {{buildrequest.buildrequestid}}
+                | {{buildset.reason}}
