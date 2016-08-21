@@ -30,5 +30,8 @@ setup(
     py_modules=['buildbot_pkg'],
     install_requires=[
         "setuptools >= 21.2.1",
+    ],
+    dependencies=[
+        "psutil"
     ]
 )
