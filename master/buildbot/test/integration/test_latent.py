@@ -135,6 +135,9 @@ class Tests(SynchronousTestCase):
             set(brids),
             set([req['buildrequestid'] for req in unclaimed_build_requests]),
         )
+        self.assertEqual(
+            len(controller.worker.building),
+            0)
         controller.auto_stop(True)
 
     def test_failed_substantiations_get_requeued(self):

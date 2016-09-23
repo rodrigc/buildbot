@@ -41,6 +41,9 @@ class AbstractLatentWorker(AbstractWorker):
     substantiation_build = None
     insubstantiating = False
     build_wait_timer = None
+    retry_timer = None
+    retry_timeout = retry_init_timeout = 10
+    retry_max_timeout = 60 * 60
 
     def checkConfig(self, name, password,
                     build_wait_timeout=60 * 10,
@@ -106,6 +109,7 @@ class AbstractLatentWorker(AbstractWorker):
         def start_instance_result(result):
             # If we don't report success, then preparation failed.
             if not result:
+                self.startSubstantiationRetryTimer()
                 msg = "Worker does not want to substantiate at this time"
                 self._substantiation_notifier.notify(LatentWorkerFailedToSubstantiate(self.name, msg))
                 return None
@@ -120,8 +124,20 @@ class AbstractLatentWorker(AbstractWorker):
         d.addCallbacks(start_instance_result, clean_up)
         return d
 
+    def startSubstantiationRetryTimer(self):
+        self.retry_timer = self.master.reactor.callLater(self.retry_timout, self.restartSubstantiation)
+        # next time we will wait twice
+        # timer reset on substanciation success
+        if self.retry_timeout < self.retry_maxtimeout:
+            self.retry_timeout *= 2
+
+    def retrySubstantiation(self):
+        self.retry_timer = None
+        self.botmaster.maybeStartBuildsForWorker(self.name)
+
     @defer.inlineCallbacks
     def attached(self, bot):
+        self.retry_timeout = self.retry_init_timeout
         if not self._substantiation_notifier and self.build_wait_timeout >= 0:
             msg = 'Worker %s received connection while not trying to ' \
                 'substantiate.  Disconnecting.' % (self.name,)
@@ -183,7 +199,7 @@ class AbstractLatentWorker(AbstractWorker):
         return self._mail_missing_message(subject, text)
 
     def canStartBuild(self):
-        if self.insubstantiating:
+        if self.insubstantiating or self.retry_timer:
             return False
         return AbstractWorker.canStartBuild(self)
 

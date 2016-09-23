@@ -71,6 +71,7 @@ class AbstractWorkerForBuilder(WorkerAPICompatMixin, object):
         return False
 
     def isBusy(self):
+        print "isBusy", self
         return self.state != States.AVAILABLE
 
     def buildStarted(self):
