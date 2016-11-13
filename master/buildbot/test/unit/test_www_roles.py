@@ -80,3 +80,31 @@ class RolesFromOwner(unittest.TestCase):
         ret = self.roles.getRolesFromUser(dict(
             username="homer", email="homer@plant.com"), "homer@plant.com")
         self.assertEqual(ret, ["ownerofbuild"])
+
+
+class RolesFromUsername(unittest.TestCase):
+
+    def setUp(self):
+        self.roles = roles.RolesFromUsername(roles=["admins"], usernames=["Admin"])
+        self.roles2 = roles.RolesFromUsername(
+            roles=["developers", "integrators"], usernames=["Alice", "Bob"])
+
+    def test_anonymous(self):
+        ret = self.roles.getRolesFromUser(dict(anonymous=True))
+        self.assertEqual(ret, [])
+
+    def test_normalUser(self):
+        ret = self.roles.getRolesFromUser(dict(username="Alice"))
+        self.assertEqual(ret, [])
+
+    def test_admin(self):
+        ret = self.roles.getRolesFromUser(dict(username="Admin"))
+        self.assertEqual(ret, ["admins"])
+
+    def test_multipleGroups(self):
+        ret = self.roles2.getRolesFromUser(dict(username="Bob"))
+        self.assertEqual(ret, ["developers", "integrators"])
+
+    def test_badUsernames(self):
+        self.assertRaises(ValueError,
+            roles.RolesFromUsername, roles=[], usernames=[None])
