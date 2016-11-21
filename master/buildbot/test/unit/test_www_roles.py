@@ -13,6 +13,7 @@
 # Copyright Buildbot Team Members
 from twisted.trial import unittest
 
+from buildbot import config
 from buildbot.www.authz import roles
 
 
@@ -106,5 +107,5 @@ class RolesFromUsername(unittest.TestCase):
         self.assertEqual(ret, ["developers", "integrators"])
 
     def test_badUsernames(self):
-        self.assertRaises(ValueError,
+        self.assertRaises(config.ConfigErrors,
             roles.RolesFromUsername, roles=[], usernames=[None])

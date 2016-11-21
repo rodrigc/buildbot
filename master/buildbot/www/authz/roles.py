@@ -74,9 +74,10 @@ class RolesFromOwner(RolesFromBase):
 
 class RolesFromUsername(RolesFromBase):
     def __init__(self, roles, usernames):
+        from buildbot import config
         self.roles = roles
         if None in usernames:
-            raise ValueError('Usernames cannot be None')
+            raise config.error('Usernames cannot be None')
         self.usernames = usernames
 
     def getRolesFromUser(self, userDetails):
