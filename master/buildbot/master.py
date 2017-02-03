@@ -45,6 +45,7 @@ from buildbot.db import exceptions
 from buildbot.mq import connector as mqconnector
 from buildbot.process import cache
 from buildbot.process import debug
+from buildbot.process import janitor
 from buildbot.process import metrics
 from buildbot.process.botmaster import BotMaster
 from buildbot.process.builder import BuilderControl
@@ -197,24 +198,13 @@ class BuildMaster(service.ReconfigurableServiceMixin, service.MasterService,
         self.secrets_manager = SecretManager()
         self.secrets_manager.setServiceParent(self)
 
+        self.janitor = janitor.JanitorService()
+        # we do setServiceParent only when the master is configured
+        # master should advertise itself only at that time
+
         self.service_manager = service.BuildbotServiceManager()
         self.service_manager.setServiceParent(self)
         self.service_manager.reconfig_priority = 1000
-
-        self.masterHouskeepingTimer = 0
-
-        @defer.inlineCallbacks
-        def heartbeat():
-            if self.masterid is not None:
-                yield self.data.updates.masterActive(name=self.name,
-                                                     masterid=self.masterid)
-            # force housekeeping once a day
-            self.masterHouskeepingTimer += 1
-            yield self.data.updates.expireMasters(
-                forceHouseKeeping=(self.masterHouskeepingTimer % (24 * 60)) == 0)
-        self.masterHeartbeatService = internet.TimerService(60, heartbeat)
-        # we do setServiceParent only when the master is configured
-        # master should advertise itself only at that time
 
     # setup and reconfig handling
 
@@ -298,11 +288,6 @@ class BuildMaster(service.ReconfigurableServiceMixin, service.MasterService,
             # call the parent method
             yield service.AsyncMultiService.startService(self)
 
-            # We make sure the housekeeping is done before configuring in order to cleanup
-            # any remaining claimed schedulers or change sources from zombie
-            # masters
-            yield self.data.updates.expireMasters(forceHouseKeeping=True)
-
             # give all services a chance to load the new configuration, rather
             # than the base configuration
             yield self.reconfigServiceWithBuildbotConfig(self.config)
@@ -311,8 +296,8 @@ class BuildMaster(service.ReconfigurableServiceMixin, service.MasterService,
             yield self.data.updates.masterActive(name=self.name,
                                                  masterid=self.masterid)
 
-            # Start the heartbeat timer
-            yield self.masterHeartbeatService.setServiceParent(self)
+            # Start the janitor
+            yield self.janitor.setServiceParent(self)
 
             # send the statistics to buildbot.net, without waiting
             self.sendBuildbotNetUsageData()

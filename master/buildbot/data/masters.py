@@ -21,14 +21,8 @@ from twisted.internet import reactor
 from twisted.python import log
 
 from buildbot.data import base
-from buildbot.data import resultspec
 from buildbot.data import types
-from buildbot.process.results import RETRY
 from buildbot.util import epoch2datetime
-
-# time, in minutes, after which a master that hasn't checked in will be
-# marked as inactive
-EXPIRE_MINUTES = 10
 
 
 def _db2data(master):
@@ -111,23 +105,6 @@ class Master(base.ResourceType):
 
     @base.updateMethod
     @defer.inlineCallbacks
-    def expireMasters(self, forceHouseKeeping=False, _reactor=reactor):
-        too_old = epoch2datetime(_reactor.seconds() - 60 * EXPIRE_MINUTES)
-        masters = yield self.master.db.masters.getMasters()
-        for m in masters:
-            if m['last_active'] is not None and m['last_active'] >= too_old:
-                continue
-
-            # mark the master inactive, and send a message on its behalf
-            deactivated = yield self.master.db.masters.setMasterState(
-                masterid=m['id'], active=False, _reactor=_reactor)
-            if deactivated:
-                yield self._masterDeactivated(m['id'], m['name'])
-            elif forceHouseKeeping:
-                yield self._masterDeactivatedHousekeeping(m['id'], m['name'])
-
-    @base.updateMethod
-    @defer.inlineCallbacks
     def masterStopped(self, name, masterid):
         deactivated = yield self.master.db.masters.setMasterState(
             masterid=masterid, active=False)
@@ -147,36 +124,6 @@ class Master(base.ResourceType):
             masterid=masterid)
         yield self.master.data.rtypes.changesource._masterDeactivated(
             masterid=masterid)
-
-        # for each build running on that instance..
-        builds = yield self.master.data.get(('builds',),
-                                            filters=[resultspec.Filter('masterid', 'eq', [masterid]),
-                                                     resultspec.Filter('complete', 'eq', [False])])
-        for build in builds:
-            # stop any running steps..
-            steps = yield self.master.data.get(
-                ('builds', build['buildid'], 'steps'),
-                filters=[resultspec.Filter('results', 'eq', [None])])
-            for step in steps:
-                # finish remaining logs for those steps..
-                logs = yield self.master.data.get(
-                    ('steps', step['stepid'], 'logs'),
-                    filters=[resultspec.Filter('complete', 'eq',
-                                               [False])])
-                for _log in logs:
-                    yield self.master.data.updates.finishLog(
-                        logid=_log['logid'])
-                yield self.master.data.updates.finishStep(
-                    stepid=step['stepid'], results=RETRY, hidden=False)
-            # then stop the build itself
-            yield self.master.data.updates.finishBuild(
-                buildid=build['buildid'], results=RETRY)
-
-        # unclaim all of the build requests owned by the deactivated instance
-        buildrequests = yield self.master.db.buildrequests.getBuildRequests(
-            complete=False, claimed=masterid)
-        yield self.master.db.buildrequests.unclaimBuildRequests(
-            brids=[br['buildrequestid'] for br in buildrequests])
 
     @defer.inlineCallbacks
     def _masterDeactivated(self, masterid, name):

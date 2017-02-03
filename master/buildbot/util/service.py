@@ -21,7 +21,7 @@ import hashlib
 
 from twisted.application import service
 from twisted.internet import defer
-from twisted.internet import task
+from twisted.internet.defer import DeferredLock
 from twisted.python import failure
 from twisted.python import log
 from twisted.python import reflect
@@ -235,8 +235,6 @@ class ClusteredBuildbotService(BuildbotService):
     """
     compare_attrs = ('name',)
 
-    POLL_INTERVAL_SEC = 5 * 60  # 5 minutes
-
     serviceid = None
     active = False
 
@@ -244,8 +242,8 @@ class ClusteredBuildbotService(BuildbotService):
 
         self.serviceid = None
         self.active = False
-        self._activityPollCall = None
-        self._activityPollDeferred = None
+        self._masterConsumer = None
+        self._claimLock = DeferredLock()
         super(ClusteredBuildbotService, self).__init__(*args, **kwargs)
 
     # activity handling
@@ -289,54 +287,32 @@ class ClusteredBuildbotService(BuildbotService):
         # run on all instances, even if they never get activated on this
         # master.
         yield super(ClusteredBuildbotService, self).startService()
-        self._startServiceDeferred = defer.Deferred()
-        self._startActivityPolling()
-        yield self._startServiceDeferred
 
+        self._masterConsumer = yield self.master.mq.startConsuming.startConsuming(
+            self._tryClaimService,
+            ('masters', None, 'stopped'))
+
+        yield self._tryClaimService()
+
+    @defer.inlineCallbacks
     def stopService(self):
         # subclasses should override stopService only to perform actions that should
         # run on all instances, even if they never get activated on this
         # master.
 
-        self._stopActivityPolling()
+        if self._masterConsumer:
+            self._masterConsumer.stopConsuming()
+            self._masterConsumer = None
 
-        # need to wait for prior activations to finish
-        if self._activityPollDeferred:
-            d = self._activityPollDeferred
-        else:
-            d = defer.succeed(None)
+        yield self._claimLock.acquire()
+        yield self._claimLock.release()
 
-        @d.addCallback
-        def deactivate_if_needed(_):
-            if self.active:
-                self.active = False
+        if self.active:
+            self.active = False
+            yield self.deactivate()
+            yield self._unclaimService()
 
-                d = defer.maybeDeferred(self.deactivate)
-                # no errback here: skip the "unclaim" if the deactivation is
-                # uncertain
-
-                d.addCallback(
-                    lambda _: defer.maybeDeferred(self._unclaimService))
-
-                d.addErrback(
-                    log.err, _why="Caught exception while deactivating ClusteredService(%s)" % self.name)
-                return d
-
-        d.addCallback(
-            lambda _: super(ClusteredBuildbotService, self).stopService())
-        return d
-
-    def _startActivityPolling(self):
-        self._activityPollCall = task.LoopingCall(self._activityPoll)
-        # plug in a clock if we have one, for tests
-        if hasattr(self, 'clock'):
-            self._activityPollCall.clock = self.clock
-
-        d = self._activityPollCall.start(self.POLL_INTERVAL_SEC, now=True)
-        self._activityPollDeferred = d
-
-        # this should never happen, but just in case:
-        d.addErrback(log.err, 'while polling for service activity:')
+        yield super(ClusteredBuildbotService, self).stopService()
 
     def _stopActivityPolling(self):
         if self._activityPollCall:
@@ -350,54 +326,33 @@ class ClusteredBuildbotService(BuildbotService):
             self._startServiceDeferred = None
 
     @defer.inlineCallbacks
-    def _activityPoll(self):
-        try:
-            # just in case..
-            if self.active:
-                return
+    def _tryClaimService(self):
+        if self.active:
+            return
+        yield self._claimLock.acquire()
+        if self.serviceid is None:
+            self.serviceid = yield self._getServiceId()
 
-            if self.serviceid is None:
-                self.serviceid = yield self._getServiceId()
+        claimed = yield self._claimService()
 
-            try:
-                claimed = yield self._claimService()
-            except Exception:
-                log.err(
-                    _why='WARNING: ClusteredService(%s) got exception while trying to claim' % self.name)
-                return
-
-            if not claimed:
-                # this master is not responsible
-                # for this service, we callback for StartService
-                # if it was not callback-ed already,
-                # and keep polling to take back the service
-                # if another one lost it
-                self._callbackStartServiceDeferred()
-                return
-
+        if claimed:
             try:
                 # this master is responsible for this service
                 # we activate it
                 self.active = True
                 yield self.activate()
             except Exception:
-                # this service is half-active, and noted as such in the db..
+                # this service cannot activate, we better just unclaim
                 log.err(
-                    _why='WARNING: ClusteredService(%s) is only partially active' % self.name)
-            finally:
-                # cannot wait for its deactivation
-                # with yield self._stopActivityPolling
-                # as we're currently executing the
-                # _activityPollCall callback
-                # we just call it without waiting its stop
-                # (that may open race conditions)
-                self._stopActivityPolling()
-                self._callbackStartServiceDeferred()
-        except Exception:
-            # don't pass exceptions into LoopingCall, which can cause it to
-            # fail
-            log.err(
-                _why='WARNING: ClusteredService(%s) failed during activity poll' % self.name)
+                    _why='WARNING: ClusteredService(%s) cannot activate' % self.name)
+                try:
+                    yield self.deactivate()
+                except Exception:
+                    # this service is half-active, and noted as such in the db..
+                    log.err(
+                        _why='WARNING: ClusteredService(%s) cannot deactivate either' % self.name)
+                yield self._unclaimService()
+        yield self._claimLock.release()
 
 
 class BuildbotServiceManager(AsyncMultiService, config.ConfiguredMixin,

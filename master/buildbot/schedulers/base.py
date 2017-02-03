@@ -86,6 +86,9 @@ class BaseScheduler(ClusteredBuildbotService, StateMixin):
                             "Unknown codebase keys %s for codebase %s"
                             % (', '.join(unk), codebase))
 
+        if name == "__MrProper__":
+            config.error("__MrProper__ scheduler name is reserved for Buildbot internal use")
+
         self.codebases = codebases
 
         # internal variables

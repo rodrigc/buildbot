@@ -32,6 +32,7 @@ There are several common arguments for schedulers, although not all are availabl
 ``name``
     Each Scheduler must have a unique name.
     This is used in status displays, and is also available in the build property ``scheduler``.
+    The name ``__MrProper__`` is reserved for Buildbot internal use.
 
 ``builderNames``
     This is the set of builders which this scheduler should trigger, specified as a list of names (strings).
