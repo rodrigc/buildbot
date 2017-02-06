@@ -1,0 +1,16 @@
+codecov:
+  notify:
+    require_ci_to_pass: no
+
+coverage:
+  precision: 2
+  round: down
+  range: "80...100"
+  status:
+    project:
+      default:
+        target: 85  # target coverage for whole project must no go below
+      patch:
+        # basic
+        target: 90  # target coverage for PR diff is 90%
+      change: true
