@@ -101,7 +101,7 @@ class PollingChangeSource(ReconfigurablePollingChangeSource):
     # instead of porting everything at once, we make a class to support legacy
 
     def checkConfig(self, name=None, pollInterval=60 * 10, pollAtLaunch=False):
-        ReconfigurablePollingChangeSource.checkConfig(self, name=name, pollInterval=60 * 10, pollAtLaunch=False)
+        ReconfigurablePollingChangeSource.checkConfig(self, name=name, pollInterval=pollInterval, pollAtLaunch=False)
         self.pollInterval = pollInterval
         self.pollAtLaunch = pollAtLaunch
 

@@ -288,7 +288,7 @@ class ClusteredBuildbotService(BuildbotService):
         # master.
         yield super(ClusteredBuildbotService, self).startService()
 
-        self._masterConsumer = yield self.master.mq.startConsuming.startConsuming(
+        self._masterConsumer = yield self.master.mq.startConsuming(
             self._tryClaimService,
             ('masters', None, 'stopped'))
 

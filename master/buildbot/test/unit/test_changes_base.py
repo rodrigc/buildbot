@@ -50,11 +50,7 @@ class TestChangeSource(changesource.ChangeSourceMixin, unittest.TestCase):
         # set the changesourceid, and claim the changesource on another master
         self.attachChangeSource(cs)
         self.setChangeSourceToMaster(self.OTHER_MASTER_ID)
-
         yield cs.startService()
-        cs.clock.advance(cs.POLL_INTERVAL_SEC / 2)
-        cs.clock.advance(cs.POLL_INTERVAL_SEC / 5)
-        cs.clock.advance(cs.POLL_INTERVAL_SEC / 5)
         self.assertFalse(cs.activate.called)
         self.assertFalse(cs.deactivate.called)
         self.assertFalse(cs.active)
@@ -65,7 +61,6 @@ class TestChangeSource(changesource.ChangeSourceMixin, unittest.TestCase):
         self.setChangeSourceToMaster(None)
 
         yield cs.startService()
-        cs.clock.advance(cs.POLL_INTERVAL_SEC)
         self.assertTrue(cs.activate.called)
         self.assertFalse(cs.deactivate.called)
         self.assertTrue(cs.active)

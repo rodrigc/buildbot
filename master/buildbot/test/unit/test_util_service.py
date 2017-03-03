@@ -25,6 +25,7 @@ from twisted.internet import task
 from twisted.trial import unittest
 
 from buildbot import config
+from buildbot.test.fake import fakemaster
 from buildbot.util import service
 
 
@@ -103,15 +104,18 @@ class ClusteredBuildbotService(unittest.TestCase):
     class DummyService(service.ClusteredBuildbotService):
         pass
 
+    @defer.inlineCallbacks
     def setUp(self):
-        self.svc = self.makeService()
+        self.svc = yield self.makeService()
 
     def tearDown(self):
         pass
 
+    @defer.inlineCallbacks
     def makeService(self, name=SVC_NAME, serviceid=SVC_ID):
+        master = yield fakemaster.make_master(wantMq=True, wantData=True, testcase=self)
         svc = self.DummyService(name=name)
-
+        yield svc.setServiceParent(master)
         svc.clock = task.Clock()
 
         self.setServiceClaimable(svc, defer.succeed(False))
@@ -120,7 +124,7 @@ class ClusteredBuildbotService(unittest.TestCase):
         self.setGetServiceIdToReturn(svc, defer.succeed(serviceid))
         self.setUnclaimToReturn(svc, defer.succeed(None))
 
-        return svc
+        defer.returnValue(svc)
 
     def makeMock(self, value):
         mockObj = mock.Mock()
@@ -205,9 +209,6 @@ class ClusteredBuildbotService(unittest.TestCase):
     def test_start_WontPollYet(self):
         self.svc.startService()
 
-        # right before the poll interval, nothing has tried again yet
-        self.svc.clock.advance(self.svc.POLL_INTERVAL_SEC * 0.95)
-
         self.assertEqual(0, self.svc.activate.call_count)
         self.assertEqual(1, self.svc._getServiceId.call_count)
         self.assertEqual(1, self.svc._claimService.call_count)
@@ -220,9 +221,6 @@ class ClusteredBuildbotService(unittest.TestCase):
     @defer.inlineCallbacks
     def test_start_PollButClaimFails(self):
         yield self.svc.startService()
-
-        # at the POLL time, it gets called again, but we're still inactive...
-        self.svc.clock.advance(self.svc.POLL_INTERVAL_SEC * 1.05)
 
         self.assertEqual(0, self.svc.activate.call_count)
         self.assertEqual(1, self.svc._getServiceId.call_count)
