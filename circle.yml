@@ -18,4 +18,4 @@ test:
 general:
   artifacts:
     - "master/docs/_build/html/"
-    - "pyinstaller/dist"
+    - "dist"
