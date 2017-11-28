@@ -36,16 +36,24 @@ install:
   - "python -m pip install -e master[tls,test]"
   - "python -m pip install -e worker"
   - "python -m pip install coverage codecov"
+  - "python -m pip install pyinstaller"
   - "python -m pip list"
 
 build: false
 
 test_script:
   - "coverage run --rcfile=common/coveragerc -m twisted.trial --reporter=text --rterrors buildbot.test buildbot_worker.test"
-
+  - "pyinstaller -F pyinstaller/buildbot-worker.spec"
+  - "SANDBOXED_WORKER_PATH=dist/buildbot-worker python -m twisted.trial --reporter=text --rterrors buildbot.test.integration.interop"
 on_success:
   - "coverage xml --rcfile=common/coveragerc -o coverage.xml -i"
   - "codecov"
+  # upload pyinstaller dist in case of success
+  - ps: |
+          $root = Resolve-Path dist;
+          [IO.Directory]::GetFiles($root.Path, '*.*', 'AllDirectories') | % {
+              Push-AppveyorArtifact $_ -FileName $_.Substring($root.Path.Length + 1) -DeploymentName trial-log
+            }
 
 on_failure:
   # Store _trial_temp directory as artifact on build failure.
