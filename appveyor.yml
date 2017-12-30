@@ -44,6 +44,7 @@ build: false
 test_script:
   - "coverage run --rcfile=common/coveragerc -m twisted.trial --reporter=text --rterrors buildbot.test buildbot_worker.test"
   - "pyinstaller -F pyinstaller/buildbot-worker.spec"
+  - "SANDBOXED_WORKER_PATH=dist/buildbot-worker python -m twisted.trial --reporter=text --rterrors buildbot.test.integration.interop"
 on_success:
   - "coverage xml --rcfile=common/coveragerc -o coverage.xml -i"
   - "codecov"
