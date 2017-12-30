@@ -6,8 +6,8 @@ environment:
     # For Python versions available on AppVeyor, see
     # http://www.appveyor.com/docs/installed-software#python
     - PYTHON: "C:\\Python27"
-    - PYTHON: "C:\\Python35"
-    - PYTHON: "C:\\Python36"
+    # - PYTHON: "C:\\Python35"
+    # - PYTHON: "C:\\Python36"
 
 install:
   - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%"
@@ -42,18 +42,15 @@ install:
 build: false
 
 test_script:
-  - "coverage run --rcfile=common/coveragerc -m twisted.trial --reporter=text --rterrors buildbot.test buildbot_worker.test"
+  # - "coverage run --rcfile=common/coveragerc -m twisted.trial --reporter=text --rterrors buildbot.test buildbot_worker.test"
   - "pyinstaller -F pyinstaller/buildbot-worker.spec"
-  - "SANDBOXED_WORKER_PATH=dist/buildbot-worker python -m twisted.trial --reporter=text --rterrors buildbot.test.integration.interop"
+  - "SET SANDBOXED_WORKER_PATH=dist\\buildbot-worker"
+  - "python -m twisted.trial --reporter=text --rterrors buildbot.test.integration.interop"
 on_success:
   - "coverage xml --rcfile=common/coveragerc -o coverage.xml -i"
   - "codecov"
   # upload pyinstaller dist in case of success
-  - ps: |
-          $root = Resolve-Path dist;
-          [IO.Directory]::GetFiles($root.Path, '*.*', 'AllDirectories') | % {
-              Push-AppveyorArtifact $_ -FileName $_.Substring($root.Path.Length + 1) -DeploymentName trial-log
-            }
+  - "appveyor PushArtifact dist\\buildbot-worker.exe"
 
 on_failure:
   # Store _trial_temp directory as artifact on build failure.
@@ -70,3 +67,16 @@ on_failure:
 # For detail see: https://www.appveyor.com/docs/how-to/rdp-to-build-worker
 #on_finish:
 #- ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
+
+deploy:
+  release: buildbot-worker-windows-v$(appveyor_build_version)
+  description: 'windows binary for buildbot-worker'
+  provider: GitHub
+  auth_token:
+    secure: HQNlcAyaY9Jznbl77rfNatZG62Gg+qFY7emzj5n3Wu16fkr8dLlFNTKOJlfXO5uK # your encrypted token from GitHub
+  artifact: buildbot-worker.exe            # upload all NuGet packages to release assets
+  draft: false
+  prerelease: false
+  on:
+    branch: master                 # release from master branch only
+    appveyor_repo_tag: true        # deploy on tag push only
