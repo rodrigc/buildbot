@@ -3,18 +3,22 @@
 
 machine:
   python:
-    version: 2.7.11
+    version: 3.6.2
 
 dependencies:
+  pre:
+    - sudo apt-get update; sudo apt-get install libenchant-dev python3-dev
   override:
-    - pyenv global 2.7.11
     - pip install -r requirements-ci.txt
 
 test:
   override:
     - make docs
-    - make pyinstaller
-    - SANDBOXED_WORKER_PATH=/dist/buildbot-worker $(which trial) --reporter=text --rterrors buildbot.test.integration.interop
+    # pyinstaller: build the buildbotworker
+    - virtualenv -p /usr/bin/python3.4 .venv/
+    - .venv/bin/pip install twisted[tls] -e worker pyinstaller
+    - .venv/bin/pyinstaller -F pyinstaller/buildbot-worker.spec
+    - SANDBOXED_WORKER_PATH=`pwd`/dist/buildbot-worker trial --reporter=text --rterrors buildbot.test.integration.interop
 
 general:
   artifacts:

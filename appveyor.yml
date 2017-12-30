@@ -32,10 +32,6 @@ install:
 
   - "python -m pip install -U pip"
   - "python -m pip install -r requirements-ci.txt"
-  - "python -m pip install -e pkg"
-  - "python -m pip install -e master[tls,test]"
-  - "python -m pip install -e worker"
-  - "python -m pip install coverage codecov"
   - "python -m pip install pyinstaller"
   - "python -m pip list"
 
@@ -44,7 +40,7 @@ build: false
 test_script:
   # - "coverage run --rcfile=common/coveragerc -m twisted.trial --reporter=text --rterrors buildbot.test buildbot_worker.test"
   - "pyinstaller -F pyinstaller/buildbot-worker.spec"
-  - "SET SANDBOXED_WORKER_PATH=dist\\buildbot-worker"
+  - "SET SANDBOXED_WORKER_PATH=%cd%\\dist\\buildbot-worker.exe"
   - "python -m twisted.trial --reporter=text --rterrors buildbot.test.integration.interop"
 on_success:
   - "coverage xml --rcfile=common/coveragerc -o coverage.xml -i"
