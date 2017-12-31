@@ -9,6 +9,7 @@ dependencies:
   pre:
     - sudo apt-get update; sudo apt-get install libenchant-dev python3-dev
   override:
+    - pip install -U pip
     - pip install -r requirements-ci.txt
     - pip install -r requirements-cidocs.txt
 
