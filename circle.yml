@@ -8,14 +8,17 @@ machine:
 dependencies:
   pre:
     - sudo apt-get update; sudo apt-get install libenchant-dev python3-dev
+    - go get github.com/tcnksm/ghr
   override:
     - pip install -U pip
     - pip install -r requirements-ci.txt
     - pip install -r requirements-cidocs.txt
+    - yarn install guanlecoja
 
 test:
   override:
     - make docs
+    - make tarballs -j4
     # pyinstaller: build the buildbotworker in a special virtualenv
     # circle ci pythons do not include the necessary dynamic libraries for pyinstaller
     - virtualenv -p /usr/bin/python3.4 .venv/
@@ -28,3 +31,9 @@ general:
   artifacts:
     - "master/docs/_build/html/"
     - "dist"
+
+deployment:
+  release:
+    tag: /testtag/
+    commands:
+      - ghr -t $GITHUB_TOKEN -u $CIRCLE_PROJECT_USERNAME -r $CIRCLE_PROJECT_REPONAME --replace `git describe --tags` output/
