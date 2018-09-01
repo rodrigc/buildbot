@@ -1,0 +1,81 @@
+# Python CircleCI 2.0 configuration file
+#
+# Check https://circleci.com/docs/2.0/language-python/ for more details
+#
+version: 2
+jobs:
+  build:
+    docker:
+      # use the same build image as we use for metabuildbot
+      - image: buildbot/metabbotcfg
+    working_directory: ~/repo
+
+    steps:
+      - checkout
+
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+          - v1-dependencies-{{ checksum "requirements-ci.txt" }}-{{ checksum "requirements-cidocs.txt" }}
+          # fallback to using the latest cache if no exact match is found
+          - v1-dependencies-
+
+      - run:
+          name: install dependencies
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            pip install -U pip
+            pip install -r requirements-ci.txt
+            pip install -r requirements-cidocs.txt
+            pip install pyinstaller
+
+      - save_cache:
+          paths:
+            - ./venv
+          key: v1-dependencies-{{ checksum "requirements-ci.txt" }}-{{ checksum "requirements-cidocs.txt" }}
+      - run:
+          name: run tests
+          command: |
+            . venv/bin/activate
+            make docs
+            make tarballs 
+            pyinstaller -F pyinstaller/buildbot-worker.spec
+            # we test the new generated binary with the global virtualenv
+            SANDBOXED_WORKER_PATH=`pwd`/dist/buildbot-worker trial --reporter=text --rterrors buildbot.test.integration.interop
+      - store_artifacts:
+          path: master/docs/_build/html/
+          destination: docs
+      - store_artifacts:
+          path: dist
+          destination: dist
+      - persist_to_workspace:
+          root: dist
+
+  # publish pipeline that is run on tags
+  publish:
+    docker:
+      # image that can push to github
+      - image: cibuilds/github:0.10
+    steps:
+      - attach_workspace:
+          at: dist
+      # rename the buildbot-worker pyinstaller binary
+      mv dist/buildbot-worker dist/buildbot-worker-linux-amd64-`git describe --tags`.bin
+      # upload the github release binary
+      ghr -t $GITHUB_TOKEN -u $CIRCLE_PROJECT_USERNAME -r $CIRCLE_PROJECT_REPONAME --replace `git describe --tags` dist/
+
+
+workflows:
+  version: 2
+  untagged-build:
+    jobs:
+      - build
+  tagged-build:
+    jobs:
+      - build
+      - publish:
+          requires:
+          filters:
+            tags:
+              only: /v.*/
